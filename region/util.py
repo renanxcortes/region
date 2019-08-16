@@ -12,6 +12,8 @@ import networkx as nx
 from libpysal import weights
 import pulp
 
+from region.csgraph_utils import sub_adj_matrix, is_connected
+
 Move = collections.namedtuple("move", "area old_region new_region")
 "A named tuple representing a move from `old_region` to `new_region`."  # sphinx
 
@@ -735,14 +737,64 @@ def assert_feasible(solution, adj, n_regions=None):
         if len(set(solution)) != n_regions:
             raise ValueError("The number of regions is {} but "
                              "should be {}".format(len(solution), n_regions))
+    #print('Beggining ORIGINAL loop of assert_feasible!')
+    #for region_label in set(solution):
+    #    _, comp_labels = csg.connected_components(adj)
+    #    # check whether equal region_label implies equal comp_label
+    #    comp_labels_in_region = comp_labels[solution == region_label]
+    #    if not all_elements_equal(comp_labels_in_region):
+    #        raise ValueError("Region {} is not spatially "
+    #                         "contiguous.".format(region_label))
+
+    #print('Beggining MODIFIED loop of assert_feasible!')
     for region_label in set(solution):
-        _, comp_labels = csg.connected_components(adj)
-        # check whether equal region_label implies equal comp_label
-        comp_labels_in_region = comp_labels[solution == region_label]
-        if not all_elements_equal(comp_labels_in_region):
+        aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
+        
+        # check right contiguity
+        if not is_connected(aux):
             raise ValueError("Region {} is not spatially "
                              "contiguous.".format(region_label))
+            
+def boolean_assert_feasible(solution, adj, n_regions=None):
+    """
+    Parameters
+    ----------
+    solution : :class:`numpy.ndarray`
+        Array of region labels.
+    adj : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix representing the contiguity relation.
+    n_regions : `int` or `None`
+        An `int` represents the desired number of regions.
+        If `None`, then the number of regions is not checked.
 
+    Return
+    ------
+    bool : Boolean.
+           True if any region is not spatially contiguous.
+    """
+    
+    resp = []
+    if n_regions is not None:
+        if len(set(solution)) != n_regions:
+            raise ValueError("The number of regions is {} but "
+                             "should be {}".format(len(solution), n_regions))
+            
+    #print('Beggining MODIFIED loop of boolean_assert_feasible!')
+    for region_label in set(solution):
+        aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
+        
+        # check whether equal region_label implies equal comp_label
+        resp.append(is_connected(aux))
+        #print('Region {} is {} for connection.'.format(str(int(region_label)), is_connected(aux)))
+        #if not is_connected(aux):
+        #    raise ValueError("Region {} is not spatially "
+        #                     "contiguous.".format(region_label))
+
+    final_resp = all(resp)
+
+    #print('The result of boolean_assert_feasible was {}'.format(str(final_resp)))
+
+    return final_resp
 
 def all_elements_equal(array):
     return np.max(array) == np.min(array)

@@ -343,6 +343,8 @@ class MaxPRegionsHeu:
             objective_func=objective_func)
 
     def grow_regions(self, adj, attr, spatially_extensive_attr, threshold):
+        
+        print('Beggining of grow_regions')
         """
         Parameters
         ----------

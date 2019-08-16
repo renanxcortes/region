@@ -10,9 +10,10 @@ from region.csgraph_utils import sub_adj_matrix, neighbors, is_connected
 from region.objective_function import ObjectiveFunctionPairwise
 from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
-                                            AllowMoveAZPSimulatedAnnealing
+                                            AllowMoveAZPSimulatedAnnealing,\
+                                            AllowMoveAZPMaxPRegions
 from region.util import array_from_df_col, array_from_dict_values, \
-    assert_feasible, copy_func, count, generate_initial_sol, \
+    assert_feasible, boolean_assert_feasible, copy_func, count, generate_initial_sol, \
     make_move, Move, pop_randomly_from, random_element_from,\
     scipy_sparse_matrix_from_w, separate_components, w_from_gdf,\
     array_from_graph_or_dict, scipy_sparse_matrix_from_dict
@@ -30,11 +31,12 @@ class AZP:
     """
 
     def __init__(self, allow_move_strategy=None, random_state=None):
+        print('Beggining of AZP class.')
         """
         Parameters
         ----------
         allow_move_strategy : None or :class:`AllowMoveStrategy`, default: None
-            If None, then the AZP algorithm in [OR1995]_ is chosen.
+            If None, then the AZP algorithm in [OR1995]_ is chosen (class `AllowMoveAZP`).
             For a different behavior for allowing moves an AllowMoveStrategy
             instance can be passed as argument.
         random_state : None, int, str, bytes, or bytearray, default: None
@@ -83,6 +85,9 @@ class AZP:
         objective_func : :class:`region.objective_function.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             The objective function to use.
         """
+        
+        print('Beggining of fit_from_scipy_sparse_matrix')
+        
         if attr.ndim == 1:
             attr = attr.reshape(adj.shape[0], -1)
         self.allow_move_strategy.attr_all = attr
@@ -105,6 +110,10 @@ class AZP:
             labels_comp = self._azp_connected_component(
                 adj_comp, labels_comp, attr_comp)
             labels[comp_idx] = labels_comp
+                
+
+        #print('Added assert_feasible inside fit_from_scipy_sparse_matrix.')
+        #assert_feasible(labels, adj)
 
         self.n_regions = n_regions
         self.labels_ = labels
@@ -412,6 +421,9 @@ class AZPSimulatedAnnealing:
                  nonmoving_steps_before_stop=3,
                  repetitions_before_termination=5,
                  random_state=None):
+        
+        print('Beggining of AZPSimulatedAnnealing class.')
+        
         """
         Parameters
         ----------
@@ -709,15 +721,31 @@ class AZPTabu(AZP, abc.ABC):
     """
     Superclass for tabu variants of the AZP.
     """
+    
+    print('Beggining of AZPTabu class.')
 
-    def _make_move(self, area, new_region, labels):
+    def _make_move(self, area, new_region, labels, adj):
+        print('Beggining of _make_move from AZPTabu class.')
         old_region = labels[area]
         make_move(area, new_region, labels)
-        # step 5: Tabu the reverse move for R iterations.
-        reverse_move = Move(area, new_region, old_region)
-        self.tabu.append(reverse_move)
+        print('The result of boolean_assert_feasible(labels, adj) inside _make_move was {}'.format(str(boolean_assert_feasible(labels, adj))))
+        if not boolean_assert_feasible(labels, adj):
+            make_move(area, old_region, labels) # Revert Move!
+            print('Reverting move...')
+            reverse_move = Move(area, new_region, old_region)
+            print(reverse_move)
+            self.tabu.append(reverse_move)
+            return False
+        else:
+            print('"else" inside _make_move...')
+            # step 5: Tabu the reverse move for R iterations.
+            reverse_move = Move(area, new_region, old_region)
+            print(reverse_move)
+            self.tabu.append(reverse_move)
+            return True
 
     def reset_tabu(self, tabu_len=None):
+        print('Beggining of reset_tabu from AZPTabu class.')
         tabu_len = self.tabu.maxlen if tabu_len is None else tabu_len
         self.tabu = deque([], tabu_len)
 
@@ -737,6 +765,9 @@ class AZPBasicTabu(AZPTabu):
                  tabu_length=None,
                  repetitions_before_termination=5,
                  random_state=None):
+        
+        print('Beggining of AZPBasicTabu class.')
+        
         """
         Parameters
         ----------
@@ -786,10 +817,17 @@ class AZPBasicTabu(AZPTabu):
 
         #  step 2: make a list of the M regions
         labels = initial_clustering
+        n_tries = 1
+        
+        contiguity = boolean_assert_feasible(labels, adj)
 
         visited = []
         stop = False
         while True:
+            #print('Added boolean_assert_feasible inside BREAK in BasicTabu.')
+            #print('Removed boolean_assert_feasible inside while in BasicTabu.')
+            #if not boolean_assert_feasible(labels, adj):
+            #    break
             # added termination condition (not in Openshaw & Rao (1995))
             label_tup = tuple(labels)
             if visited.count(label_tup) >= self.reps_before_termination:
@@ -807,7 +845,15 @@ class AZPBasicTabu(AZPTabu):
                     adj, np.where(labels == old_region)[0], wo_nodes=area)
                 # moving the area must not destroy spatial contiguity in donor
                 # region and if area is alone in its region, it must stay:
-                if is_connected(sub_adj) and count(labels, old_region) > 1:
+                #print('The result of is_connected(sub_adj) is {}'.format(str(is_connected(sub_adj))))
+                #print('The result of boolean_assert_feasible(labels, adj) is {}'.format(str(boolean_assert_feasible(labels, adj))))
+                
+                #if not boolean_assert_feasible(labels, adj):
+                #    aux += 1
+                #    #print('aux were added by 1.')
+                
+                if is_connected(sub_adj) and count(labels, old_region) > 1: #  and boolean_assert_feasible(labels, adj)
+                    #print('Swapped is_connected to boolean_assert_feasible')
                     for neigh in neighbors(adj, area):
                         new_region = labels[neigh]
                         if new_region != old_region:
@@ -821,32 +867,44 @@ class AZPBasicTabu(AZPTabu):
                                     best_objval_diff = objval_diff
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            if best_move is not None and best_objval_diff <= 0:
-                self._make_move(best_move.area, best_move.new_region, labels)
+            if best_move is not None and best_objval_diff <= 0 and contiguity:
+                print('Begin Step 2')
+                self._make_move(best_move.area, best_move.new_region, labels, adj)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
+                print('Begin Step 3')
                 improving_tabus = [
                     move for move in self.tabu
                     if labels[move.area] == move.old_region
                     and self.objective_func.update(move.area, move.new_region,
                                                    labels, attr) < 0
                 ]
-                if improving_tabus:
+                move_ok = True
+                if improving_tabus and move_ok and len(improving_tabus) > 1 and n_tries < 10: # BUG! If improving Tabus is just one, it will always dram form the same element!
+                    print('Inside "if improving_tabus" condition. len(improving_tabus) is {}'.format(len(improving_tabus)))
                     aspiration_move = random_element_from(improving_tabus)
                     self._make_move(aspiration_move.area,
-                                    aspiration_move.new_region, labels)
+                                    aspiration_move.new_region, labels, adj)
+                    
+                    move_ok = self._make_move(aspiration_move.area, aspiration_move.new_region, labels, adj)
+                    print('move_ok was {}'.format(move_ok))
+                    print('contiguity is {}'.format(contiguity))
+                    
+                    n_tries += 1
+                    print('n_tries is {}'.format(n_tries))
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
                     # (that is, results in a worse value of the objective
                     # function).
-                    if stop:
+                    print('Begin Step 4')
+                    if stop: # or aux > 5
                         break
                     if best_move is not None:
                         self._make_move(best_move.area, best_move.new_region,
-                                        labels)
+                                        labels, adj)
         return labels
 
 
@@ -963,7 +1021,7 @@ class AZPReactiveTabu(AZPTabu):
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
             # step 5: Make the move. Update the tabu status.
-            self._make_move(best_move.area, best_move.new_region, labels)
+            self._make_move(best_move.area, best_move.new_region, labels, adj)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
@@ -1001,7 +1059,7 @@ class AZPReactiveTabu(AZPTabu):
                         for _ in range(p):
                             move = possible_moves.pop(
                                 random.randrange(len(possible_moves)))
-                            self._make_move(move.area, move.new_region, labels)
+                            self._make_move(move.area, move.new_region, labels, adj)
                         continue
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the

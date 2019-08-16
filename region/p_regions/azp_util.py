@@ -7,8 +7,8 @@ import numpy as np
 
 
 class AllowMoveStrategy(abc.ABC):
-    def start_new_component(self, initial_labels, attr, objective_func,
-                            comp_idx):
+    def start_new_component(self, initial_labels, attr, objective_func, comp_idx):
+        print('Beggining of start_new_component from AllowMoveStrategy.')
         """
         This method should be called whenever a new connected component is
         clustered.
@@ -34,6 +34,7 @@ class AllowMoveStrategy(abc.ABC):
 
     @abc.abstractmethod
     def __call__(self, moving_area, new_region, labels):
+        print('Beggining of __call__ from AllowMoveStrategy.')
         """
         Assess whether a potential move is allowed or not. The criteria for
         allowing a move are defined in the implementations of this abstract
@@ -152,8 +153,8 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     spatially extensive attribute.
     """
 
-    def __init__(self, spatially_extensive_attr, threshold,
-                 decorated_strategy):
+    def __init__(self, spatially_extensive_attr, threshold, decorated_strategy):
+        print('Beggining of AllowMoveAZPMaxPRegions to check spatially extensive attribute adds up to a given threshold.')
         """
 
         Parameters
@@ -173,8 +174,8 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         self.spatially_extensive_attr = None
         self.threshold = threshold
 
-    def start_new_component(self, initial_labels, attr, objective_func,
-                            comp_idx):
+    def start_new_component(self, initial_labels, attr, objective_func, comp_idx):
+        print('Beggining of start_new_component from AllowMoveAZPMaxPRegions to check spatially extensive attribute adds up to a given threshold.')
         self.spatially_extensive_attr = self.spatially_extensive_attr_all[
             comp_idx]
         super().start_new_component(initial_labels, attr, objective_func,
@@ -183,6 +184,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
                                                      objective_func, comp_idx)
 
     def __call__(self, moving_area, new_region, labels):
+        print('Beggining of __call__ from AllowMoveAZPMaxPRegions to check spatially extensive attribute adds up to a given threshold.')
         sp_ext = self.spatially_extensive_attr
 
         if (sp_ext[moving_area]).any() > 0:
