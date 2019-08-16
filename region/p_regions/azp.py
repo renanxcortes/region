@@ -817,6 +817,7 @@ class AZPBasicTabu(AZPTabu):
 
         #  step 2: make a list of the M regions
         labels = initial_clustering
+        
         n_tries = 1
         
         contiguity = boolean_assert_feasible(labels, adj)
@@ -882,7 +883,7 @@ class AZPBasicTabu(AZPTabu):
                                                    labels, attr) < 0
                 ]
                 move_ok = True
-                if improving_tabus and move_ok and len(improving_tabus) > 1 and n_tries < 10: # BUG! If improving Tabus is just one, it will always dram form the same element!
+                if improving_tabus and move_ok and len(improving_tabus) > 1: # and n_tries < 10 # BUG! If improving Tabus is just one, it will always dram form the same element!
                     print('Inside "if improving_tabus" condition. len(improving_tabus) is {}'.format(len(improving_tabus)))
                     aspiration_move = random_element_from(improving_tabus)
                     self._make_move(aspiration_move.area,
@@ -894,6 +895,9 @@ class AZPBasicTabu(AZPTabu):
                     
                     n_tries += 1
                     print('n_tries is {}'.format(n_tries))
+                    print('stop is {}'.format(stop))
+                    if stop: # or aux > 5
+                        break
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
