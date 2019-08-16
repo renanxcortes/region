@@ -291,6 +291,9 @@ class AZP:
             objective_func=objective_func)
 
     def _azp_connected_component(self, adj, initial_clustering, attr):
+        
+        print('Beggining of _azp_connected_component')
+        
         """
         Implementation of the AZP algorithm for a spatially connected set of
         areas (i.e. for every area there is a path to every other area).
@@ -787,6 +790,9 @@ class AZPBasicTabu(AZPTabu):
         super().__init__(random_state=random_state)
 
     def _azp_connected_component(self, adj, initial_clustering, attr):
+        
+        print('Beggining of _azp_connected_component from AZPBasicTabu class.')
+        
         """
         Implementation of the basic tabu version of the AZP algorithm (refer
         to [OR1995]_) for a spatially connected set of areas (i.e. for every
@@ -814,11 +820,14 @@ class AZPBasicTabu(AZPTabu):
         distinct_regions = list(np.unique(initial_clustering))
         if len(distinct_regions) == 1:
             return initial_clustering
-
-        #  step 2: make a list of the M regions
-        labels = initial_clustering
         
         n_tries = 1
+
+        #  For step 2: make a list of the M regions
+        labels = initial_clustering
+        
+        obj_val_start = float("inf")
+        obj_val_end = self.allow_move_strategy.objective_val
         
         contiguity = boolean_assert_feasible(labels, adj)
 
@@ -886,10 +895,15 @@ class AZPBasicTabu(AZPTabu):
                 if improving_tabus and move_ok and len(improving_tabus) > 1: # and n_tries < 10 # BUG! If improving Tabus is just one, it will always dram form the same element!
                     print('Inside "if improving_tabus" condition. len(improving_tabus) is {}'.format(len(improving_tabus)))
                     aspiration_move = random_element_from(improving_tabus)
-                    self._make_move(aspiration_move.area,
-                                    aspiration_move.new_region, labels, adj)
                     
-                    move_ok = self._make_move(aspiration_move.area, aspiration_move.new_region, labels, adj)
+                    print('Add below allow_move_strategy')
+                    if self.allow_move_strategy(aspiration_move.area, aspiration_move.new_region, labels):
+                    
+                        self._make_move(aspiration_move.area,
+                                        aspiration_move.new_region, labels, adj)
+                        
+                        move_ok = self._make_move(aspiration_move.area, aspiration_move.new_region, labels, adj)
+                        
                     print('move_ok was {}'.format(move_ok))
                     print('contiguity is {}'.format(contiguity))
                     
